@@ -48,6 +48,7 @@ def nous() -> Type[ModelAPI]:
 # Core benchmarks
 from .evals.drop import drop  # noqa: F401, E402
 from .evals.gpqa_diamond import gpqa_diamond  # noqa: F401, E402
+from .evals.graphwalks import graphwalks  # noqa: F401, E402
 from .evals.healthbench import healthbench, healthbench_hard, healthbench_consensus  # noqa: F401, E402
 from .evals.hle import hle, hle_text  # noqa: F401, E402
 from .evals.humaneval import humaneval  # noqa: F401, E402
