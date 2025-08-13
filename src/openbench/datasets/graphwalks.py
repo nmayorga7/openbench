@@ -5,7 +5,10 @@ from inspect_ai.dataset import Dataset, Sample, hf_dataset
 
 _ALLOWED = {"bfs", "parents"}
 
-def record_to_sample(record: dict[str, Any], *, allowed: Optional[set[str]] = None) -> Optional[Sample]:
+
+def record_to_sample(
+    record: dict[str, Any], *, allowed: Optional[set[str]] = None
+) -> Optional[Sample]:
     """
     Map one HF row to an Inspect Sample.
     If `allowed` is provided, drop rows whose problem_type isn't in it by returning None.
@@ -27,6 +30,7 @@ def record_to_sample(record: dict[str, Any], *, allowed: Optional[set[str]] = No
         },
     )
 
+
 def get_dataset(split: str = "train", task_type: str = "both") -> Dataset:
     """
     task_type: 'bfs' | 'parents' | 'both' (default: keep all)
@@ -44,6 +48,8 @@ def get_dataset(split: str = "train", task_type: str = "both") -> Dataset:
     return hf_dataset(
         path="openai/graphwalks",
         split=split,
-        sample_fields=lambda rec, _allowed=allowed: record_to_sample(rec, allowed=_allowed),
+        sample_fields=lambda rec, _allowed=allowed: record_to_sample(
+            rec, allowed=_allowed
+        ),
         name=f"graphwalks_{name_suffix}",
     )

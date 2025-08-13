@@ -10,6 +10,7 @@ from inspect_ai.scorer import scorer, Score, Target, mean, stderr
 #   Final Answer: [a, b, c]
 _FINAL_LINE_RE = re.compile(r"Final Answer:\s*\[(.*)\]\s*$", re.IGNORECASE)
 
+
 def _parse_nodes(text: str) -> tuple[list[str], bool]:
     """Return (nodes, parse_error_flag). Dedup while preserving order."""
     if not text:
@@ -29,6 +30,7 @@ def _parse_nodes(text: str) -> tuple[list[str], bool]:
             out.append(t)
     return out, False
 
+
 def _prf1(pred: list[str], gold: list[str]) -> tuple[float, float, float]:
     sp, sg = set(pred), set(gold)
     inter = len(sp & sg)
@@ -37,20 +39,25 @@ def _prf1(pred: list[str], gold: list[str]) -> tuple[float, float, float]:
     f1 = 2 * p * r / (p + r) if (p + r) else 0.0
     return p, r, f1
 
+
 @scorer(metrics=[mean(), stderr()])  # UI will show Mean (and stderr) of F1
 def graphwalks_scorer():
     async def score(state, target: Target) -> Score:
         # Inspect model output: prefer .completion, fall back to .text if needed
         out = ""
         if getattr(state, "output", None) is not None:
-            out = getattr(state.output, "completion", None) or getattr(state.output, "text", "") or ""
+            out = (
+                getattr(state.output, "completion", None)
+                or getattr(state.output, "text", "")
+                or ""
+            )
 
         pred, parse_err = _parse_nodes(out)
         gold = list(target)  # Target is a sequence of gold node strings
 
         p, r, f1 = _prf1(pred, gold)
         return Score(
-            value=f1,                 # Mean in the UI = mean F1
+            value=f1,  # Mean in the UI = mean F1
             answer=str(pred),
             metadata={
                 "precision": p,
@@ -61,4 +68,5 @@ def graphwalks_scorer():
                 "gold": gold,
             },
         )
+
     return score

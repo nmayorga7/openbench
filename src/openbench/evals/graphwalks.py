@@ -8,6 +8,7 @@ from inspect_ai.solver import generate
 from openbench.datasets.graphwalks import get_dataset
 from openbench.scorers.graphwalks import graphwalks_scorer
 
+
 @task
 def graphwalks(split: str = "train", task_type: str = "both") -> Task:
     return Task(
@@ -17,4 +18,3 @@ def graphwalks(split: str = "train", task_type: str = "both") -> Task:
         name="graphwalks",
         config=GenerateConfig(temperature=0.0, top_p=1.0, max_tokens=256),
     )
-

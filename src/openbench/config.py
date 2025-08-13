@@ -31,7 +31,7 @@ class BenchmarkMetadata:
 
 # Benchmark metadata - minimal, no duplication
 BENCHMARKS = {
-    # New - graphwalks 
+    # New - graphwalks
     "graphwalks": BenchmarkMetadata(
         name="Graphwalks",
         description="Multi Hop Reasoning Long Context Benchmark - operation performance given a graph represented by its edge list",
