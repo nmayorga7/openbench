@@ -1,6 +1,7 @@
 # src/openbench/evals/graphwalks.py
 from __future__ import annotations
 
+from typing import Optional
 from inspect_ai import task, Task
 from inspect_ai.model import GenerateConfig
 from inspect_ai.solver import generate
@@ -10,9 +11,20 @@ from openbench.scorers.graphwalks import graphwalks_scorer
 
 
 @task
-def graphwalks(split: str = "train") -> Task:
+def graphwalks(split: str = "train", max_context_size: Optional[int] = None) -> Task:
+    """Graphwalks evaluation task.
+    
+    Evaluates model ability to perform graph traversal tasks including BFS and parent-finding.
+    
+    Args:
+        split: Dataset split to use ('train', 'validation', 'test').
+        max_context_size: Maximum context size in tokens. Defaults to None.
+    
+    Returns:
+        Task configured for Graphwalks evaluation.
+    """
     return Task(
-        dataset=get_dataset(split=split, task_type="both"),
+        dataset=get_dataset(split=split, task_type="both", max_context_size=max_context_size),
         solver=[generate()],
         scorer=graphwalks_scorer(),
         name="graphwalks",
@@ -21,9 +33,20 @@ def graphwalks(split: str = "train") -> Task:
 
 
 @task
-def graphwalks_bfs(split: str = "train") -> Task:
+def graphwalks_bfs(split: str = "train", max_context_size: Optional[int] = None) -> Task:
+    """Graphwalks BFS-only evaluation task.
+    
+    Evaluates model ability to perform breadth-first search on graphs.
+    
+    Args:
+        split: Dataset split to use ('train', 'validation', 'test').
+        max_context_size: Maximum context size in tokens. Defaults to None.
+    
+    Returns:
+        Task configured for Graphwalks BFS evaluation.
+    """
     return Task(
-        dataset=get_dataset(split=split, task_type="bfs"),
+        dataset=get_dataset(split=split, task_type="bfs", max_context_size=max_context_size),
         solver=[generate()],
         scorer=graphwalks_scorer(),
         name="graphwalks_bfs",
@@ -32,9 +55,20 @@ def graphwalks_bfs(split: str = "train") -> Task:
 
 
 @task
-def graphwalks_parents(split: str = "train") -> Task:
+def graphwalks_parents(split: str = "train", max_context_size: Optional[int] = None) -> Task:
+    """Graphwalks parent-finding evaluation task.
+    
+    Evaluates model ability to find parent nodes in graphs.
+    
+    Args:
+        split: Dataset split to use ('train', 'validation', 'test').
+        max_context_size: Maximum context size in tokens. Defaults to None.
+    
+    Returns:
+        Task configured for Graphwalks parent-finding evaluation.
+    """
     return Task(
-        dataset=get_dataset(split=split, task_type="parents"),
+        dataset=get_dataset(split=split, task_type="parents", max_context_size=max_context_size),
         solver=[generate()],
         scorer=graphwalks_scorer(),
         name="graphwalks_parents",
