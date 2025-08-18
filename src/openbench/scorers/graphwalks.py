@@ -63,49 +63,72 @@ GRAPHWALKS_BINS = [
 
 @metric
 def graphwalks_metrics() -> Metric:
-    """Report mean precision / recall / f1 per token bin."""
+    """Mean F1 by token-count bin (MRCR-style; flat mapping)."""
+
     def metric_calculator(scores: list[SampleScore]) -> Value:
-        f1_by_bin = {f"{L}-{R}": 0.0 for (L, R) in GRAPHWALKS_BINS}
-        p_by_bin = {f"{L}-{R}": 0.0 for (L, R) in GRAPHWALKS_BINS}
-        r_by_bin = {f"{L}-{R}": 0.0 for (L, R) in GRAPHWALKS_BINS}
-        counts = {f"{L}-{R}": 0 for (L, R) in GRAPHWALKS_BINS}
+        f1_by_token_count_bin: dict[str, float] = {}
+        bin_counts: dict[str, int] = {}
 
-        for s in scores:
-            md = s.score.metadata or {}
-            tok = int(md.get("raw_input_tok_cnt", 0))
-            p = float(md.get("precision", 0.0))
-            r = float(md.get("recall", 0.0))
-            f1 = float(md.get("f1", 0.0))
+        # init bins
+        for left_bin, right_bin in GRAPHWALKS_BINS:
+            key = f"{left_bin}-{right_bin}"
+            f1_by_token_count_bin[key] = 0.0
+            bin_counts[key] = 0
 
-            for i, (L, R) in enumerate(GRAPHWALKS_BINS):
-                if (i == 0 and L <= tok <= R) or (i > 0 and L < tok <= R):
-                    k = f"{L}-{R}"
-                    f1_by_bin[k] += f1
-                    p_by_bin[k] += p
-                    r_by_bin[k] += r
-                    counts[k] += 1
-                    break
+        if not scores:
+            # MRCR returns the flat mapping (zeros) when empty
+            return f1_by_token_count_bin
+
+        for sample_score in scores:
+            md = sample_score.score.metadata or {}
+            bin_index = md.get("bin_index")
+            if (
+                not isinstance(bin_index, int)
+                or bin_index < 0
+                or bin_index >= len(GRAPHWALKS_BINS)
+            ):
+                continue
+
+            left_bin, right_bin = GRAPHWALKS_BINS[bin_index]
+            key = f"{left_bin}-{right_bin}"
+
+            try:
+                f1_val = float(sample_score.score.as_float())  # per-sample scalar
+            except Exception:
+                continue
+
+            f1_by_token_count_bin[key] += f1_val
+            bin_counts[key] += 1
 
         # average per bin
-        for k in f1_by_bin.keys():
-            if counts[k] > 0:
-                f1_by_bin[k] /= counts[k]
-                p_by_bin[k] /= counts[k]
-                r_by_bin[k] /= counts[k]
+        for key in f1_by_token_count_bin:
+            cnt = bin_counts[key]
+            if cnt > 0:
+                f1_by_token_count_bin[key] /= cnt
 
-        return {
-            "f1_by_token_count": f1_by_bin,
-            "precision_by_token_count": p_by_bin,
-            "recall_by_token_count": r_by_bin,
-            "samples_per_bin": counts,
-        }
+        return f1_by_token_count_bin
 
     return metric_calculator
 
+@metric
+def graphwalks_token_counts() -> Metric:
+    def calc(scores: list[SampleScore]) -> Value:
+        counts = {f"{L}-{R}": 0 for (L, R) in GRAPHWALKS_BINS}
+        for s in scores:
+            md = s.score.metadata or {}
+            bidx = md.get("bin_index")
+            if isinstance(bidx, int) and 0 <= bidx < len(GRAPHWALKS_BINS):
+                L, R = GRAPHWALKS_BINS[bidx]
+                counts[f"{L}-{R}"] += 1
+        # flat dict; numeric values
+        return {f"samples_per_bin[{k}]": float(v) for k, v in counts.items()}
+    return calc
 
-@scorer(metrics=[mean(), stderr(), graphwalks_metrics()])
+
+@scorer(metrics=[mean(), graphwalks_metrics(), graphwalks_token_counts()])
 def graphwalks_scorer():
     async def score(state, target: Target) -> Score:
+        # 1) get output text
         out = ""
         if getattr(state, "output", None) is not None:
             out = (
@@ -114,26 +137,53 @@ def graphwalks_scorer():
                 or ""
             )
 
+        # 2) parse prediction + compute PRF1
         pred, parse_err = _parse_nodes(out)
         gold = list(target)
         p, r, f1 = _prf1(pred, gold)
 
-        # use precomputed token count if available, else compute on the fly
-        md = getattr(state, "metadata", None) or {}
-        tok_cnt = int(md.get("raw_input_tok_cnt") or get_token_count(str(state.input)))
+        # 3) token counts (MRCR-style total = input + output)
+        md_in = getattr(state, "metadata", None) or {}
+        input_tok_cnt = int(md_in.get("raw_input_tok_cnt", 0))
 
+        # Serialize gold to a compact string for counting (no nesting)
+        try:
+            gold_str = ",".join(map(str, gold))
+        except Exception:
+            gold_str = ""
+        output_tok_cnt = int(get_token_count(gold_str))
+        total_tok_cnt = input_tok_cnt + output_tok_cnt
+
+        # 4) compute bin_index inline (mirror MRCR’s boundary handling)
+        bin_index = 0
+        for i, (left_bin, right_bin) in enumerate(GRAPHWALKS_BINS):
+            if i == 0 or i == len(GRAPHWALKS_BINS) - 1:
+                # First and last bins inclusive on both ends
+                if left_bin <= total_tok_cnt <= right_bin:
+                    bin_index = i
+                    break
+            else:
+                # Middle bins: [left, right)
+                if left_bin <= total_tok_cnt < right_bin:
+                    bin_index = i
+                    break
+                
+        print(f"tok={total_tok_cnt} -> bin={bin_index}")
+
+        # 5) return per-sample score
         return Score(
-            value=f1,
+            value=float(f1),
             answer=str(pred),
             metadata={
-                "precision": p,
-                "recall": r,
-                "f1": f1,
+                "precision": float(p),
+                "recall": float(r),
+                "f1": float(f1),
                 "parsed_ok": (not parse_err),
                 "pred": pred,
                 "gold": gold,
-                "raw_input_tok_cnt": tok_cnt,
+                "raw_input_tok_cnt": input_tok_cnt,
+                "total_tok_cnt": total_tok_cnt,
+                "bin_index": bin_index,  # <-- MRCR pattern
             },
         )
-
     return score
