@@ -14,7 +14,7 @@ def graphwalks(split: str = "train", max_context_size: Optional[int] = None) -> 
         solver=[generate()],
         scorer=graphwalks_scorer(),
         name="graphwalks",
-        config=GenerateConfig(temperature=0.0, top_p=1.0, max_tokens=256),
+        config=GenerateConfig(temperature=0.0, top_p=1.0, max_tokens=8192),
     )
 
 @task
@@ -24,7 +24,7 @@ def graphwalks_bfs(split: str = "train", max_context_size: Optional[int] = None)
         solver=[generate()],
         scorer=graphwalks_scorer(),
         name="graphwalks_bfs",
-        config=GenerateConfig(temperature=0.0, top_p=1.0, max_tokens=256),
+        config=GenerateConfig(temperature=0.0, top_p=1.0, max_tokens=8192),
     )
 
 @task
@@ -34,5 +34,5 @@ def graphwalks_parents(split: str = "train", max_context_size: Optional[int] = N
         solver=[generate()],
         scorer=graphwalks_scorer(),
         name="graphwalks_parents",
-        config=GenerateConfig(temperature=0.0, top_p=1.0, max_tokens=256),
+        config=GenerateConfig(temperature=0.0, top_p=1.0, max_tokens=8192),
     )
