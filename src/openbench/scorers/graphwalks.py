@@ -63,7 +63,7 @@ GRAPHWALKS_BINS = [
 
 @metric
 def graphwalks_metrics() -> Metric:
-    """Mean F1 by token-count bin (MRCR-style; flat mapping)."""
+    """Mean F1 by token-count bin (flat mapping)."""
 
     def metric_calculator(scores: list[SampleScore]) -> Value:
         f1_by_token_count_bin: dict[str, float] = {}
@@ -76,7 +76,6 @@ def graphwalks_metrics() -> Metric:
             bin_counts[key] = 0
 
         if not scores:
-            # MRCR returns the flat mapping (zeros) when empty
             return f1_by_token_count_bin
 
         for sample_score in scores:
@@ -128,7 +127,7 @@ def graphwalks_token_counts() -> Metric:
 @scorer(metrics=[mean(), graphwalks_metrics(), graphwalks_token_counts()])
 def graphwalks_scorer():
     async def score(state, target: Target) -> Score:
-        # 1) get output text
+        # get output text
         out = ""
         if getattr(state, "output", None) is not None:
             out = (
@@ -137,16 +136,16 @@ def graphwalks_scorer():
                 or ""
             )
 
-        # 2) parse prediction + compute PRF1
+        # parse prediction + compute PRF1
         pred, parse_err = _parse_nodes(out)
         gold = list(target)
         p, r, f1 = _prf1(pred, gold)
 
-        # 3) token counts (MRCR-style total = input + output)
+        # token counts (input + output)
         md_in = getattr(state, "metadata", None) or {}
         input_tok_cnt = int(md_in.get("raw_input_tok_cnt", 0))
 
-        # Serialize gold to a compact string for counting (no nesting)
+        # serialize gold to a compact string for counting (no nesting)
         try:
             gold_str = ",".join(map(str, gold))
         except Exception:
@@ -154,23 +153,21 @@ def graphwalks_scorer():
         output_tok_cnt = int(get_token_count(gold_str))
         total_tok_cnt = input_tok_cnt + output_tok_cnt
 
-        # 4) compute bin_index inline (mirror MRCR’s boundary handling)
+        # compute bin_index
         bin_index = 0
         for i, (left_bin, right_bin) in enumerate(GRAPHWALKS_BINS):
             if i == 0 or i == len(GRAPHWALKS_BINS) - 1:
-                # First and last bins inclusive on both ends
+                # first and last bins inclusive on ends
                 if left_bin <= total_tok_cnt <= right_bin:
                     bin_index = i
                     break
             else:
-                # Middle bins: [left, right)
+                # middle bins: [left, right)
                 if left_bin <= total_tok_cnt < right_bin:
                     bin_index = i
                     break
-                
-        print(f"tok={total_tok_cnt} -> bin={bin_index}")
 
-        # 5) return per-sample score
+        # return per-sample score
         return Score(
             value=float(f1),
             answer=str(pred),
@@ -183,7 +180,7 @@ def graphwalks_scorer():
                 "gold": gold,
                 "raw_input_tok_cnt": input_tok_cnt,
                 "total_tok_cnt": total_tok_cnt,
-                "bin_index": bin_index,  # <-- MRCR pattern
+                "bin_index": bin_index,
             },
         )
     return score
