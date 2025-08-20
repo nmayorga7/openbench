@@ -8,9 +8,13 @@ from openbench.datasets.graphwalks import get_dataset
 from openbench.scorers.graphwalks import graphwalks_scorer
 
 @task
-def graphwalks(split: str = "train", max_context_size: Optional[int] = None) -> Task:
+def graphwalks(
+    split: str = "train", 
+    max_context_size: Optional[int] = None,
+    task_type: str = "both",
+) -> Task:
     return Task(
-        dataset=get_dataset(split=split, task_type="both", max_context_size=max_context_size),
+        dataset=get_dataset(split=split, task_type=task_type, max_context_size=max_context_size),
         solver=[generate()],
         scorer=graphwalks_scorer(),
         name="graphwalks",
