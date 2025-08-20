@@ -9,7 +9,6 @@ from inspect_ai.scorer import (
     Score,
     Target,
     mean,
-    stderr,
     Metric,
     Value,
     SampleScore,
