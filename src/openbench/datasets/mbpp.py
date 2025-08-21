@@ -22,11 +22,13 @@ from typing import Any, Callable, Dict, List, Optional
 from inspect_ai.dataset import Dataset, Sample, FieldSpec, hf_dataset
 from inspect_ai.model import ChatMessageUser
 
+
 def _get_first(rec: Dict[str, Any], *keys: str, default: Any = None) -> Any:
     for k in keys:
         if k in rec and rec[k] not in (None, ""):
             return rec[k]
     return default
+
 
 def _normalize_tests(tests: Any) -> List[str]:
     if tests is None:
@@ -37,6 +39,7 @@ def _normalize_tests(tests: Any) -> List[str]:
         return [ln.rstrip() for ln in tests.splitlines() if ln.strip()]
     return []
 
+
 PROMPT_TEMPLATE = (
     "You are an expert Python programmer, and here is your task: {prompt} "
     "Your code should pass these tests:\n\n"
@@ -46,10 +49,12 @@ PROMPT_TEMPLATE = (
     "[DONE]"
 )
 
+
 def record_to_sample() -> FieldSpec | Callable[[Dict[str, Any]], Sample]:
     """
     Map a raw MBPP record to an Inspect Sample using the paper-style prompt.
     """
+
     def _map(record: Dict[str, Any]) -> Sample:
         # primary fields (sanitized schema)
         task_id = str(record.get("task_id", "") or "").strip() or None
@@ -62,7 +67,9 @@ def record_to_sample() -> FieldSpec | Callable[[Dict[str, Any]], Sample]:
         # normalize setup
         raw_setup = record.get("test_imports")
         if isinstance(raw_setup, list):
-            setup = "\n".join(s for s in (str(x).rstrip() for x in raw_setup) if s) or None
+            setup = (
+                "\n".join(s for s in (str(x).rstrip() for x in raw_setup) if s) or None
+            )
         else:
             setup = (str(raw_setup).strip() or None) if raw_setup is not None else None
 
@@ -77,8 +84,8 @@ def record_to_sample() -> FieldSpec | Callable[[Dict[str, Any]], Sample]:
         metadata = {
             "task_id": task_id,
             "prompt": prompt_text,
-            "tests": tests_list,          # list[str] of assert lines
-            "setup": setup,               # optional imports/helpers (str or None)
+            "tests": tests_list,  # list[str] of assert lines
+            "setup": setup,  # optional imports/helpers (str or None)
             "reference_code": reference,  # optional
         }
 
@@ -91,14 +98,15 @@ def record_to_sample() -> FieldSpec | Callable[[Dict[str, Any]], Sample]:
 
     return _map
 
+
 def get_dataset(*, limit: Optional[int] = None, name: Optional[str] = None) -> Dataset:
     """
     Load MBPP (sanitized) test split from Hugging Face and adapt to Inspect Samples.
     """
     return hf_dataset(
         path="Muennighoff/mbpp",
-        name="sanitized",          # config, limited to sanitized
-        split="test",              # only split we use
+        name="sanitized",  # config, limited to sanitized
+        split="test",  # only split we use
         sample_fields=record_to_sample(),
         limit=limit,
     )

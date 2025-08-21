@@ -17,7 +17,7 @@ Scoring policy:
        [unit tests (assert statements)]
        print("__MBPP_OK__")
   2) Run: python -c "<assembled>"
-  3) Pass iff exit code == 0 
+  3) Pass iff exit code == 0
 """
 
 from __future__ import annotations
@@ -25,7 +25,15 @@ from __future__ import annotations
 import re
 from typing import Any, Callable, List, Optional
 from inspect_ai.solver import TaskState
-from inspect_ai.scorer import scorer, Score, Target, accuracy, stderr, CORRECT, INCORRECT
+from inspect_ai.scorer import (
+    scorer,
+    Score,
+    Target,
+    accuracy,
+    stderr,
+    CORRECT,
+    INCORRECT,
+)
 from inspect_ai.util import ExecResult, sandbox
 
 
@@ -33,6 +41,7 @@ from inspect_ai.util import ExecResult, sandbox
 
 _BEGIN_DONE_RE = re.compile(r"\[BEGIN\](?P<code>[\s\S]*?)\[DONE\]", re.IGNORECASE)
 _FENCED_RE = re.compile(r"```(?:python|py)?\s*(?P<code>[\s\S]*?)```", re.IGNORECASE)
+
 
 def _extract_code(completion: str) -> str:
     """
@@ -54,6 +63,7 @@ def _extract_code(completion: str) -> str:
 
 # utils
 
+
 def _normalize_tests(tests: Any) -> List[str]:
     """Accept list[str] or str; return list[str] of statements (asserts)."""
     if tests is None:
@@ -63,6 +73,7 @@ def _normalize_tests(tests: Any) -> List[str]:
     if isinstance(tests, str):
         return [ln.rstrip() for ln in tests.splitlines() if ln.strip()]
     return []
+
 
 def _assemble_program(
     *,
@@ -78,6 +89,7 @@ def _assemble_program(
     if tests:
         parts.append("\n".join(tests))
     return "\n\n".join(parts)
+
 
 def _truncate(s: str, n: int = 1200) -> str:
     return s if len(s) <= n else s[: n - 3] + "..."
@@ -109,9 +121,15 @@ def mbpp_verify(*, timeout: int = 6) -> Callable[[TaskState, Target], Score]:
             explanation = (
                 "No candidate code found.\n\n"
                 "The following verification code was executed:\n\n```python\n"
-                + program + "\n```\n"
+                + program
+                + "\n```\n"
             )
-            return Score(value=INCORRECT, answer="", explanation=explanation, metadata={"task_id": task_id})
+            return Score(
+                value=INCORRECT,
+                answer="",
+                explanation=explanation,
+                metadata={"task_id": task_id},
+            )
 
         # assemble program
         program = _assemble_program(setup=setup, candidate_code=candidate, tests=tests)
