@@ -166,6 +166,7 @@ def vercel() -> Type[ModelAPI]:
 # Task Registration
 
 # Core benchmarks
+from .evals.cruxeval import cruxeval, cruxeval_input_direct, cruxeval_input_cot, cruxeval_output_direct, cruxeval_output_cot  # noqa: F401, E402
 from .evals.drop import drop  # noqa: F401, E402
 from .evals.gpqa_diamond import gpqa_diamond  # noqa: F401, E402
 from .evals.graphwalks import graphwalks  # noqa: F401, E402

@@ -34,6 +34,51 @@ class BenchmarkMetadata:
 
 # Benchmark metadata - minimal, no duplication
 BENCHMARKS = {
+    "cruxeval": BenchmarkMetadata(
+    name="CRUXEval",
+    description="Code reasoning benchmark with two tasks: CRUXEval-O (output prediction) and CRUXEval-I (input prediction)",
+    category="core",
+    tags=["code", "reasoning", "functional-correctness"],
+    module_path="openbench.evals.cruxeval",
+    function_name="cruxeval",
+    is_alpha=False,
+    ), 
+    "cruxeval_input_direct": BenchmarkMetadata(
+    name="CRUXEval Input Direct",
+    description="Code reasoning benchmark with CRUXEval-I (input prediction) and direct response ONLY",
+    category="core",
+    tags=["code", "reasoning", "functional-correctness"],
+    module_path="openbench.evals.cruxeval",
+    function_name="cruxeval_input_direct",
+    is_alpha=False,
+    ),
+    "cruxeval_input_cot": BenchmarkMetadata(
+    name="CRUXEval Input CoT",
+    description="Code reasoning benchmark with CRUXEval-I (input prediction) and CoT (reasoning response)",
+    category="core",
+    tags=["code", "reasoning", "functional-correctness"],
+    module_path="openbench.evals.cruxeval",
+    function_name="cruxeval_input_cot",
+    is_alpha=False,
+    ),
+    "cruxeval_output_direct": BenchmarkMetadata(
+    name="CRUXEval Output Direct",
+    description="Code reasoning benchmark with CRUXEval-O (output prediction) and direct response ONLY",
+    category="core",
+    tags=["code", "reasoning", "functional-correctness"],
+    module_path="openbench.evals.cruxeval",
+    function_name="cruxeval_output_direct",
+    is_alpha=False,
+    ),
+    "cruxeval_output_cot": BenchmarkMetadata(
+    name="CRUXEval Output CoT",
+    description="Code reasoning benchmark with CRUXEval-O (output prediction) and CoT (reasoning response)",
+    category="core",
+    tags=["code", "reasoning", "functional-correctness"],
+    module_path="openbench.evals.cruxeval",
+    function_name="cruxeval_output_cot",
+    is_alpha=False,
+    ),
     # Graphwalks benchmarks (alpha)
     "graphwalks": BenchmarkMetadata(
         name="GraphWalks",
