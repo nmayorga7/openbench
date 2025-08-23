@@ -5,53 +5,45 @@ from openbench.utils.text import get_token_count
 
 _ALLOWED = {"bfs", "parents"}
 
-def _estimate_tokens_from_chars(chars: int) -> int:
-    # Simple, conservative chars→tokens conversion
-    return max(1, (chars + 3) // 4)
-
 def record_to_sample(
     allowed: Optional[set[str]] = None,
     max_context_size: Optional[int] = None,
 ) -> FieldSpec | Callable[[dict[str, Any]], Sample | list[Sample]]:
+    """Create a mapper from GraphWalks records to Inspect Samples.
+
+    Expected fields in the source record:
+    - prompt (str): input to the model
+    - answer_nodes (list[str]): expected output
+    - prompt_chars (int): input prompt character count
+    - problem_type (str): "parents" or "bfs"
+    """
 
     def _record_to_sample(record: dict[str, Any]) -> Sample | list[Sample]:
         problem_type = (record.get("problem_type") or "").strip().lower()
 
-        # 1) Cheap type filter
+        # problem type filter
         if allowed is not None and problem_type not in allowed:
             return []
-
-        prompt: str = record["prompt"]
-
-        # 2) Always compute (or estimate) token count for binning/metrics
-        try:
-            tok_cnt = int(get_token_count(prompt))
-        except Exception:
-            # Fall back to a reasonable estimate based on characters
-            tok_cnt = _estimate_tokens_from_chars(int(record.get("prompt_chars") or len(prompt)))
-
-        # 3) Optional gating by max_context_size (use exact count only;
-        #    if we only had an estimate due to error, do NOT drop)
-        if max_context_size is not None:
-            try:
-                exact_tok_cnt = int(get_token_count(prompt))  # re-try once for gating accuracy
-                if exact_tok_cnt > max_context_size:
-                    return []
-                tok_cnt = exact_tok_cnt  # keep exact value in metadata
-            except Exception:
-                # If tokenizer still fails, do not drop on an estimate
-                pass
-
-        gold = record.get("answer", record.get("answer_nodes", []))
+        
+        # calculate tokens
+        prompt = str(record.get("prompt"))
+        tok_cnt = int(get_token_count(prompt))
+        
+        # token filter if max_context_size is provided
+        if max_context_size is not None and tok_cnt > max_context_size:
+            return []
+        
+        metadata = {
+            "problem_type": problem_type,
+            "n_chars": record.get("prompt_chars"),
+            "raw_input_tok_cnt": tok_cnt,
+            "target": record.get("answer_nodes")
+        }
 
         return Sample(
             input=prompt,
-            target=gold,
-            metadata={
-                "problem_type": problem_type,
-                "prompt_chars": record.get("prompt_chars"),
-                "raw_input_tok_cnt": tok_cnt,   # <- always set
-            },
+            target=str(record.get("answer_nodes")),
+            metadata=metadata,
         )
 
     return _record_to_sample

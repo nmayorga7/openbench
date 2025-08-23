@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import re
-from typing import Set, Iterable, Tuple
+import bisect
+from typing import Iterable, Tuple
 
 from inspect_ai.scorer import (
     scorer,
@@ -16,35 +17,36 @@ from inspect_ai.scorer import (
 )
 from openbench.utils.text import get_token_count
 
-# Match "Final Answer: [a, b, c]" at the end of output
-_FINAL_LINE_RE = re.compile(r"Final Answer:\s*\[(.*)\]\s*$", re.IGNORECASE)
 
+def _parse_nodes(response: str) -> tuple[list[str], bool]:
+    # get last line of assistant response
+    line = response.split("\n")[-1]
+    # check formatting
+    if "Final Answer:" not in line:
+        return [], True
 
-def _parse_nodes(text: str) -> Tuple[list[str], bool]:
-    """Return (nodes, parse_error_flag). Dedup while preserving order."""
-    if not text:
+    list_part = re.search(r"Final Answer: ?\[(.*)\]", line)
+    if list_part:
+        inner = list_part.group(1)
+        # return [] if empty list (not [""])
+        result_list = [item.strip() for item in inner.split(",") if item.strip()]
+        return result_list, False
+    else:
         return [], True
-    last_line = text.strip().splitlines()[-1]
-    m = _FINAL_LINE_RE.search(last_line)
-    if not m:
-        return [], True
-    inner = m.group(1)
-    raw = [t.strip() for t in inner.split(",")]
-    seen: Set[str] = set()
-    out: list[str] = []
-    for t in raw:
-        if t and t not in seen:
-            seen.add(t)
-            out.append(t)
-    return out, False
 
 
 def _prf1(pred: Iterable[str], gold: Iterable[str]) -> Tuple[float, float, float]:
     sp, sg = set(pred), set(gold)
-    inter = len(sp & sg)
-    p = inter / len(sp) if sp else 0.0
-    r = inter / len(sg) if sg else 0.0
-    f1 = 2 * p * r / (p + r) if (p + r) else 0.0
+
+    # special case for correct empty set prediction
+    if not sp and not sg:
+        p, r, f1 = 1.0, 1.0, 1.0
+    else:
+        n_overlap = len(sp & sg)
+        r = n_overlap / len(sg) if sg else 0.0
+        p = n_overlap / len(sp) if sp else 0.0
+        f1 = 2 * r * p / (r + p) if (r + p) else 0.0
+
     return p, r, f1
 
 
@@ -65,21 +67,22 @@ def graphwalks_metrics() -> Metric:
     """Mean F1 by token-count bin (flat mapping)."""
 
     def metric_calculator(scores: list[SampleScore]) -> Value:
-        f1_by_token_count_bin: dict[str, float] = {}
-        bin_counts: dict[str, int] = {}
+        # output dict
+        f1_by_token_count_bin: dict[str, float] = {
+            f"{L}-{R}": 0.0 for (L, R) in GRAPHWALKS_BINS
+        }
 
-        # init bins
-        for left_bin, right_bin in GRAPHWALKS_BINS:
-            key = f"{left_bin}-{right_bin}"
-            f1_by_token_count_bin[key] = 0.0
-            bin_counts[key] = 0
+        # internal accumulators
+        f1_sums = dict.fromkeys(GRAPHWALKS_BINS, 0.0)
+        bin_counts = dict.fromkeys(GRAPHWALKS_BINS, 0)
 
         if not scores:
             return f1_by_token_count_bin
 
-        for sample_score in scores:
-            md = sample_score.score.metadata or {}
-            bin_index = md.get("bin_index")
+        for s in scores:
+            if s.score.metadata is None:
+                continue
+            bin_index = s.score.metadata.get("bin_index")
             if (
                 not isinstance(bin_index, int)
                 or bin_index < 0
@@ -87,84 +90,56 @@ def graphwalks_metrics() -> Metric:
             ):
                 continue
 
-            left_bin, right_bin = GRAPHWALKS_BINS[bin_index]
-            key = f"{left_bin}-{right_bin}"
-
-            try:
-                f1_val = float(sample_score.score.as_float())  # per-sample scalar
-            except Exception:
-                continue
-
-            f1_by_token_count_bin[key] += f1_val
+            # add individual score and count to running totals
+            key = GRAPHWALKS_BINS[bin_index]
+            f1_sums[key] += s.score.as_float()
             bin_counts[key] += 1
 
-        # average per bin
-        for key in f1_by_token_count_bin:
-            cnt = bin_counts[key]
-            if cnt > 0:
-                f1_by_token_count_bin[key] /= cnt
+        # average f1 per bin (divide by count)
+        for L, R in GRAPHWALKS_BINS:
+            total = f1_sums[(L, R)]
+            cnt = bin_counts[(L, R)]
+            f1_by_token_count_bin[f"{L}-{R}"] = (total / cnt) if cnt > 0 else 0.0
 
         return f1_by_token_count_bin
 
     return metric_calculator
+
 
 @metric
 def graphwalks_token_counts() -> Metric:
     def calc(scores: list[SampleScore]) -> Value:
         counts = {f"{L}-{R}": 0 for (L, R) in GRAPHWALKS_BINS}
         for s in scores:
-            md = s.score.metadata or {}
-            bidx = md.get("bin_index")
-            if isinstance(bidx, int) and 0 <= bidx < len(GRAPHWALKS_BINS):
-                L, R = GRAPHWALKS_BINS[bidx]
+            if s.score.metadata is None:
+                continue
+            bin_index = s.score.metadata.get("bin_index")
+            if isinstance(bin_index, int) and 0 <= bin_index < len(GRAPHWALKS_BINS):
+                L, R = GRAPHWALKS_BINS[bin_index]
                 counts[f"{L}-{R}"] += 1
         # flat dict; numeric values
         return {f"samples_per_bin[{k}]": float(v) for k, v in counts.items()}
+
     return calc
 
 
 @scorer(metrics=[mean(), graphwalks_metrics(), graphwalks_token_counts()])
 def graphwalks_scorer():
     async def score(state, target: Target) -> Score:
-        # get output text
-        out = ""
-        if getattr(state, "output", None) is not None:
-            out = (
-                getattr(state.output, "completion", None)
-                or getattr(state.output, "text", "")
-                or ""
-            )
-
         # parse prediction + compute PRF1
-        pred, parse_err = _parse_nodes(out)
+        pred, parse_err = _parse_nodes(state.output.completion or "")
         gold = list(target)
         p, r, f1 = _prf1(pred, gold)
 
         # token counts (input + output)
-        md_in = getattr(state, "metadata", None) or {}
-        input_tok_cnt = int(md_in.get("raw_input_tok_cnt", 0))
-
-        # serialize gold to a compact string for counting (no nesting)
-        try:
-            gold_str = ",".join(map(str, gold))
-        except Exception:
-            gold_str = ""
-        output_tok_cnt = int(get_token_count(gold_str))
+        input_tok_cnt = state.metadata.get("raw_input_tok_cnt", 0)
+        output_tok_cnt = get_token_count(state.output.completion or "")
         total_tok_cnt = input_tok_cnt + output_tok_cnt
+        state.metadata["total_tok_cnt"] = total_tok_cnt
 
         # compute bin_index
-        bin_index = 0
-        for i, (left_bin, right_bin) in enumerate(GRAPHWALKS_BINS):
-            if i == 0 or i == len(GRAPHWALKS_BINS) - 1:
-                # first and last bins inclusive on ends
-                if left_bin <= total_tok_cnt <= right_bin:
-                    bin_index = i
-                    break
-            else:
-                # middle bins: [left, right)
-                if left_bin <= total_tok_cnt < right_bin:
-                    bin_index = i
-                    break
+        bin_boundaries = [right for _, right in GRAPHWALKS_BINS[:-1]]
+        bin_index = bisect.bisect_right(bin_boundaries, total_tok_cnt)
 
         # return per-sample score
         return Score(
@@ -182,4 +157,5 @@ def graphwalks_scorer():
                 "bin_index": bin_index,
             },
         )
+
     return score
