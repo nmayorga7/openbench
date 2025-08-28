@@ -20,16 +20,20 @@ from openbench.utils.text import get_token_count
 
 def _parse_nodes(response: str) -> tuple[list[str], bool]:
     # get last line of assistant response
-    line = response.split("\n")[-1]
-    # check formatting
-    if "Final Answer:" not in line:
+    last_line = response.split("\n")[-1]
+    
+    # check formatting with case-insensitive matching
+    if "final answer:" not in last_line.lower():
         return [], True
 
-    list_part = re.search(r"Final Answer: ?\[(.*)\]", line)
+    # more flexible regex with case-insensitive flag and end-of-line anchor
+    list_part = re.search(r"final answer:\s*\[(.*)\]\s*$", last_line, re.IGNORECASE)
     if list_part:
         inner = list_part.group(1)
         # return [] if empty list (not [""])
         result_list = [item.strip() for item in inner.split(",") if item.strip()]
+        # in-order deduplication
+        result_list = list(dict.fromkeys(result_list))  
         return result_list, False
     else:
         return [], True
