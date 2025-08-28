@@ -5,6 +5,7 @@ from openbench.utils.text import get_token_count
 
 _ALLOWED = {"bfs", "parents"}
 
+
 def record_to_sample(
     allowed: Optional[set[str]] = None,
     max_context_size: Optional[int] = None,
@@ -24,20 +25,20 @@ def record_to_sample(
         # problem type filter
         if allowed is not None and problem_type not in allowed:
             return []
-        
+
         # calculate tokens
         prompt = str(record.get("prompt"))
         tok_cnt = int(get_token_count(prompt))
-        
+
         # token filter if max_context_size is provided
         if max_context_size is not None and tok_cnt > max_context_size:
             return []
-        
+
         metadata = {
             "problem_type": problem_type,
             "n_chars": record.get("prompt_chars"),
             "raw_input_tok_cnt": tok_cnt,
-            "target": record.get("answer_nodes")
+            "target": record.get("answer_nodes"),
         }
 
         return Sample(
@@ -65,5 +66,7 @@ def get_dataset(
     return hf_dataset(
         path="openai/graphwalks",
         split=split,
-        sample_fields=record_to_sample(allowed=allowed, max_context_size=max_context_size),
+        sample_fields=record_to_sample(
+            allowed=allowed, max_context_size=max_context_size
+        ),
     )
