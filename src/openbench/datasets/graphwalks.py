@@ -43,7 +43,7 @@ def record_to_sample(
 
         return Sample(
             input=prompt,
-            target=str(record.get("answer_nodes")),
+            target=record.get("answer_nodes", []),
             metadata=metadata,
         )
 
