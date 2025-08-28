@@ -21,7 +21,7 @@ from openbench.utils.text import get_token_count
 def _parse_nodes(response: str) -> tuple[list[str], bool]:
     # get last line of assistant response
     last_line = response.split("\n")[-1]
-    
+
     # check formatting with case-insensitive matching
     if "final answer:" not in last_line.lower():
         return [], True
@@ -33,7 +33,7 @@ def _parse_nodes(response: str) -> tuple[list[str], bool]:
         # return [] if empty list (not [""])
         result_list = [item.strip() for item in inner.split(",") if item.strip()]
         # in-order deduplication
-        result_list = list(dict.fromkeys(result_list))  
+        result_list = list(dict.fromkeys(result_list))
         return result_list, False
     else:
         return [], True
