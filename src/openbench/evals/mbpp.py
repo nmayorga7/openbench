@@ -1,29 +1,29 @@
-from __future__ import annotations
-
-from typing import Optional
-
 from inspect_ai import Task, task, Epochs
-from inspect_ai.model import GenerateConfig
 from inspect_ai.solver import generate
-
-from openbench.datasets.mbpp import get_dataset
-from openbench.scorers.mbpp import mbpp_verify
+from inspect_ai.model import GenerateConfig
+from openbench.datasets.mbpp import get_mbpp_dataset
+from openbench.scorers.mbpp import verify
 
 
 @task
-def mbpp(
-    limit: Optional[int] = None,
-    # execution / scoring
-    timeout: int = 6,  # seconds for python -c execution in sandbox
-    epochs: int = 1,
-    temperature: float = 0.0,  # determinism for code generation
-) -> Task:
+def mbpp(subset: str = "full", split: str = "test") -> Task:
+    """
+    Inspect Task implementation for the MBPP benchmark.
+
+    Args:
+        subset: Which subset to evaluate ("full" (default), "sanitized")
+        split: Which split to evaluate ("test" (default), "train", "validation", "prompt")
+    Returns:
+        Task: The configured MBPP task.
+    """
+    epochs_count = 5
+    temperature = 0.5
     return Task(
-        dataset=get_dataset(limit=limit),
-        solver=generate(),
-        scorer=mbpp_verify(timeout=timeout),
-        sandbox="local",
-        config=GenerateConfig(temperature=temperature),
-        epochs=Epochs(epochs),
         name="mbpp",
+        dataset=get_mbpp_dataset(subset=subset, split=split),
+        solver=generate(),
+        scorer=verify(),
+        sandbox="local",
+        epochs=Epochs(epochs_count, reducer="mean"),
+        config=GenerateConfig(temperature=temperature),
     )
