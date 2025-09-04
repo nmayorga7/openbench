@@ -1,3 +1,4 @@
+import re
 from inspect_ai.util import sandbox, ExecResult
 from inspect_ai.scorer import (
     Score,
@@ -16,7 +17,10 @@ def parse_mbpp_response(response: str) -> str:
     # get model code from between [BEGIN] and [DONE]
     if not response:
         return ""
-    return response.split("[BEGIN]")[1].split("[DONE]")[0]
+    pattern = r"\[BEGIN\](.*?)\[DONE\]"
+    match = re.search(pattern, response, re.DOTALL)
+
+    return match.group(1).strip() if match else ""
 
 
 @scorer(metrics=[accuracy(), stderr()])
