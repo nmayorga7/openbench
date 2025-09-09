@@ -35,6 +35,15 @@ class BenchmarkMetadata:
 # Benchmark metadata - minimal, no duplication
 BENCHMARKS = {
     # Graphwalks benchmarks (alpha)
+    "clockbench": BenchmarkMetadata(
+        name="ClockBench",
+        description="Clock benchmark - time-based reasoning tasks",
+        category="core",
+        tags=["time", "analog", "clock", "reasoning"],
+        module_path="openbench.evals.clockbench",
+        function_name="clockbench",
+        is_alpha=False,
+    ),
     "graphwalks": BenchmarkMetadata(
         name="GraphWalks",
         description="Multi-hop reasoning on graphs - both BFS and parent finding tasks",
