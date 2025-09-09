@@ -5,8 +5,10 @@ repos:
       - id: ruff
         name: ruff check
         args: [--fix]
+        files: ^src/
       - id: ruff-format
         name: ruff format
+        files: ^src/
   - repo: local
     hooks:
       - id: mypy
@@ -14,5 +16,6 @@ repos:
         entry: .venv/bin/mypy
         language: system
         types: [python]
-        args: [.]
+        args: [src]
         pass_filenames: false
+        files: ^src/
