@@ -38,7 +38,7 @@ BENCHMARKS = {
     "clockbench": BenchmarkMetadata(
         name="ClockBench",
         description="Clock benchmark - time-based reasoning tasks",
-        category="core",
+        category="community",
         tags=["time", "analog", "clock", "reasoning"],
         module_path="openbench.evals.clockbench",
         function_name="clockbench",
