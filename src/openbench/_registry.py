@@ -227,6 +227,7 @@ from .evals.musr import musr  # noqa: F401, E402
 from .evals.openbookqa import openbookqa  # noqa: F401, E402
 from .evals.scicode import scicode  # noqa: F401, E402
 from .evals.simpleqa import simpleqa  # noqa: F401, E402
+from .evals.tumlu import tumlu  # noqa: F401, E402
 from .evals.detailbench import detailbench  # noqa: F401, E402
 from .evals.supergpqa import supergpqa  # noqa: F401, E402
 from .evals.mmmu import (  # noqa: F401, E402
