@@ -18,6 +18,7 @@ graph TB
     Benchmarks --> Datasets[Dataset Loader<br/>/datasets]
     Benchmarks --> Scorers[Scoring Logic<br/>/scorers]
     Benchmarks --> Solvers[Model Solver<br/>/solvers]
+    Scorers --> Metrics[Scoring Metric<br/>/metrics]
 ```
 
 ## Core Components
@@ -153,16 +154,6 @@ def get_dataset() -> Dataset:
 Custom scoring and metric mechanisms can be defined:
 
 ```python
-@metric
-def benchmark_metrics() -> Metric:
-    def metric_calculator(list[SampleScore]) -> Value:
-        # Custom metrics, aggregation, etc.
-        return {
-            "metric": value
-            ...
-        }
-    return metric_calculator
-
 @scorer
 def benchmark_scorer() -> Callable:
     async def score(state, target) -> Score:
@@ -174,6 +165,70 @@ def benchmark_scorer() -> Callable:
             metadata={}
         )
     return score
+```
+
+```python expandable
+@scorer(metrics=[accuracy(), stderr()])
+def simpleqa_scorer(model: str) -> Callable:
+    """SimpleQA is a model-graded benchmark. Predicted and target answers are evaluated by a grader model."""
+
+    grader_model: Model = get_model(model)
+
+    async def score(state: TaskState, target: Target) -> Score:
+        question = state.input_text
+        predicted_answer = state.output.completion
+
+        # Format the grader model prompt
+        grader_prompt = GRADER_TEMPLATE.format(     
+            question=question, target=target.text, predicted_answer=predicted_answer
+        )
+
+        # Get grading response
+        message = ChatMessageUser(content=grader_prompt)
+        grading_response = await grader_model.generate([message])
+        grading_text = grading_response.completion
+
+        # Regex extraction of grade
+        match = re.search(r"(A|B|C)", grading_text)
+        grade_letter = match.group(0) if match else "C"  # Default to NOT_ATTEMPTED
+        grade_map = {"A": ("correct", 1.0), "B": ("incorrect", 0.0), "C": ("not_attempted", 0.0),}
+        grade_name, score_value = grade_map.get(grade_letter, ("not_attempted", 0.0))
+
+        # Return score with metadata
+        return Score(
+            value=score_value,
+            answer=predicted_answer,
+            metadata={
+                "grade": grade_name,
+                "grade_letter": grade_letter,
+                "grading_response": grading_text,
+            },
+        )
+
+    return score
+```
+
+<Tip> Reference InspectAI: [Scorer](https://inspect.aisi.org.uk/reference/inspect_ai.scorer.html#scorer), [Score](https://inspect.aisi.org.uk/reference/inspect_ai.scorer.html#score) </Tip>
+Scoring Archetypes:
+
+- **Exact match**: Direct comparison
+- **Pattern match**: Regex-based
+- **Model-graded**: Use secondary grader model to score
+- **Symbolic**: Mathematical equivalence
+- **Custom**: Task-specific logic
+
+### 5. Scoring Metrics (`metrics/`)
+Metrics provide aggregate insight on model performance across all samples: 
+```python
+@metric
+def benchmark_metrics() -> Metric:
+    def metric_calculator(list[SampleScore]) -> Value:
+        # Custom metrics, breakdown by category, etc.
+        return {
+            "metric": value
+            ...
+        }
+    return metric_calculator
 ```
 
 ```python expandable
@@ -218,59 +273,19 @@ def simpleqa_metrics() -> Metric:
         }
 
     return metric_calculator
+```
+Include custom metrics in the scorer function decorator for automatic detection during evaluation.
 
-
+```python
 @scorer(metrics=[accuracy(), stderr(), simpleqa_metrics()])
-def simpleqa_scorer(model: str) -> Callable:
-    """SimpleQA is a model-graded benchmark. Predicted and target answers are evaluated by a grader model."""
-
-    grader_model: Model = get_model(model)
-
-    async def score(state: TaskState, target: Target) -> Score:
-        question = state.input_text
-        predicted_answer = state.output.completion
-
-        # Format the grader model prompt
-        grader_prompt = GRADER_TEMPLATE.format(     
-            question=question, target=target.text, predicted_answer=predicted_answer
-        )
-
-        # Get grading response
-        message = ChatMessageUser(content=grader_prompt)
-        grading_response = await grader_model.generate([message])
-        grading_text = grading_response.completion
-
-        # Regex extraction of grade
-        match = re.search(r"(A|B|C)", grading_text)
-        grade_letter = match.group(0) if match else "C"  # Default to NOT_ATTEMPTED
-        grade_map = {"A": ("correct", 1.0), "B": ("incorrect", 0.0), "C": ("not_attempted", 0.0),}
-        grade_name, score_value = grade_map.get(grade_letter, ("not_attempted", 0.0))
-
-        # Return score with metadata
-        return Score(
-            value=score_value,
-            answer=predicted_answer,
-            metadata={
-                "grade": grade_name,
-                "grade_letter": grade_letter,
-                "grading_response": grading_text,
-            },
-        )
-
-    return score
+def simpleqa_scorer(model: str):
+    ...
 ```
 
 <Tip> Inspect AI builds in support for common metrics inluding accuracy and stderr. Learn more about [built-in metrics.](https://inspect.aisi.org.uk/reference/inspect_ai.scorer.html#metrics)  
-Reference InspectAI: [Metric](https://inspect.aisi.org.uk/reference/inspect_ai.scorer.html#metric), [Scorer](https://inspect.aisi.org.uk/reference/inspect_ai.scorer.html#scorer), [Score](https://inspect.aisi.org.uk/reference/inspect_ai.scorer.html#score) </Tip>
-Scoring Archetypes:
+Reference InspectAI: [Metric](https://inspect.aisi.org.uk/reference/inspect_ai.scorer.html#metric) </Tip>
 
-- **Exact match**: Direct comparison
-- **Pattern match**: Regex-based
-- **Model-graded**: Use secondary grader model to score
-- **Symbolic**: Mathematical equivalence
-- **Custom**: Task-specific logic
-
-### 5. Model Solver Logic (`solvers/`)
+### 6. Model Solver Logic (`solvers/`)
 
 Solvers define how the evaluated model processes questions.
 OpenBench supports custom solver logic, though InspectAI provides a number of robust [built-in solvers](https://inspect.aisi.org.uk/solvers.html#built-in-solvers).
@@ -315,7 +330,9 @@ openbench/
 │   │   ├── humaneval.py
 │   │   └── ...
 │   ├── metrics/        # Custom metrics
-│   │   └── grouped.py
+│   │   ├── mmlu.py
+│   │   ├── humaneval.py
+│   │   └── ...
 │   ├── scorers/        # Scoring functions
 │   │   ├── choice.py
 │   │   ├── pattern.py
@@ -330,9 +347,10 @@ openbench/
 
 ## Extension Points - Adding New Benchmarks
 
-1. Create eval task in `evals/`
-2. Create dataset loader in `datasets/`
-3. Create scoring logic in `scorers/`
-3. Optional: Create custom solver in `solvers/`
-4. Add benchmark metadata to `config.py`
-5. Import your task into `_registry.py`
+1. Eval task in `evals/`
+2. Dataset loader in `datasets/`
+3. Scoring logic in `scorers/`
+3. Custom solver in `solvers/` (optional)
+4. Custom metric in `metrics/` (optional)
+5. Benchmark metadata in `config.py`
+6. Import eval task into `_registry.py`
