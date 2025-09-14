@@ -1,6 +1,6 @@
-from inspect_ai.scorer import Metric, Score, mean, scorer
+from inspect_ai.scorer import Score, mean, scorer
 from inspect_ai.solver import TaskState
-from inspect_ai.scorer import Target, metric
+from inspect_ai.scorer import Target
 from pathlib import Path
 import time
 import shutil
@@ -8,6 +8,7 @@ import subprocess
 from typing import Any
 
 from openbench.datasets.scicode import download_h5_file
+from openbench.metrics.scicode import sub_problem_correctness
 
 
 class ScicodeEvaluator:
@@ -116,19 +117,6 @@ from scicode.parse.parse import process_hdf5_to_tuple
         shutil.rmtree(tmp_dir)
         problem_correct = 1 if total_correct == total_steps else 0
         return problem_correct, total_correct, total_steps
-
-
-@metric
-def sub_problem_correctness() -> Metric:
-    def metric(scores: list[Score]) -> int | float:
-        total_correct = 0
-        total_steps = 0
-        for score in scores:
-            total_correct += score.value["Total Correct"]  # type: ignore
-            total_steps += score.value["Total Steps"]  # type: ignore
-        return total_correct / total_steps
-
-    return metric
 
 
 @scorer(
